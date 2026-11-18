@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0e1117">
+<title>Голодные Гаджеты</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:#0e1117;
+    background-image:radial-gradient(circle at 50% -10%,#1e2a3d 0%,#0e1117 60%);
+    color:#e8eef5;
+    user-select:none;-webkit-user-select:none;
+    display:flex;flex-direction:column;
+    height:100vh;height:100dvh;
+    padding-top:env(safe-area-inset-top);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+
+  /* ---------- HUD ---------- */
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:8px;padding:10px 14px 4px;
+  }
+  .stat{
+    display:flex;align-items:center;gap:6px;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.07);
+    padding:6px 13px;border-radius:99px;
+    font-size:15px;font-weight:600;letter-spacing:.3px;
+  }
+  .stat b{font-weight:800}
+  #hearts{letter-spacing:1px;font-size:14px;padding:6px 11px}
+
+  /* ---------- Заказ ---------- */
+  #orderbar{
+    display:flex;align-items:center;gap:12px;
+    margin:8px 14px 0;padding:10px 14px;
+    background:linear-gradient(180deg,#1d2635,#161d29);
+    border:1px solid rgba(255,255,255,.07);
+    border-radius:16px;
+  }
+  #gadgetEmoji{font-size:26px;line-height:1;filter:drop-shadow(0 0 8px rgba(245,166,35,.4))}
+  #gadgetWrap{flex:1;min-width:0}
+  #gadgetName{font-size:13px;font-weight:700;color:#9fb3cc;margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase}
+  #timerBar{height:8px;background:rgba(255,255,255,.09);border-radius:99px;overflow:hidden}
+  #timerFill{height:100%;width:100%;border-radius:99px;background:linear-gradient(90deg,#2fd873,#9be15d)}
+
+  /* ---------- Игровое поле ---------- */
+  #playArea{
+    flex:1;min-height:0;
+    display:flex;align-items:center;justify-content:center;
+    padding:12px;
+  }
+  #board{
+    width:320px;height:320px;
+    position:relative;
+    border-radius:22px;
+    background:#0d3a22;
+    background-image:
+      linear-gradient(rgba(217,164,65,.06) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(217,164,65,.06) 1px,transparent 1px),
+      radial-gradient(circle at 30% 20%,rgba(47,216,115,.10),transparent 65%);
+    background-size:22px 22px,22px 22px,100% 100%;
+    border:2px solid rgba(217,164,65,.35);
+    box-shadow:inset 0 0 40px rgba(0,0,0,.55),0 10px 30px rgba(0,0,0,.45);
+    display:flex;flex-wrap:wrap;align-content:center;justify-content:center;
+    gap:12px;padding:14px;
+  }
+
+  /* ---------- Контактная площадка ---------- */
+  .pad{
+    flex:0 0 var(--pad-size,calc(50% - 12px));
+    aspect-ratio:1;
+    position:relative;
+    display:grid;place-items:center;
+    touch-action:none;
+    cursor:pointer;
+  }
+  .pad svg{
+    position:absolute;inset:0;width:100%;height:100%;
+    transform:rotate(-90deg);
+    overflow:visible;
+  }
+  .track{fill:none;stroke:rgba(255,255,255,.10);stroke-width:6}
+  .zone{fill:none;stroke:#2fd873;stroke-width:6;opacity:.55;stroke-linecap:butt}
+  .trail{fill:none;stroke:#f5a623;stroke-width:6;stroke-linecap:butt}
+  .marker{fill:#fff;stroke:none;opacity:0;filter:drop-shadow(0 0 4px rgba(255,255,255,.9))}
+
+  .core{
+    width:62%;height:62%;border-radius:50%;
+    display:grid;place-items:center;
+    background:radial-gradient(circle at 35% 30%,#2b3648,#151b25);
+    border:1px solid rgba(255,255,255,.09);
+    box-shadow:inset 0 2px 6px rgba(0,0,0,.5);
+    font-size:1em;line-height:1;
+    position:relative;z-index:1;
+    transition:background .18s,box-shadow .15s,transform .1s;
+  }
+  .pad.heating .core{
+    background:radial-gradient(circle at 35% 30%,#5a3a12,#2a1a06);
+    box-shadow:0 0 22px rgba(245,166,35,.85),inset 0 0 14px rgba(245,166,35,.6);
+    transform:scale(1.06);
+  }
+  .pad.done .core{
+    background:radial-gradient(circle at 32% 26%,#eaf6ff,#8fb2cf 55%,#5d7d99);
+    border-color:#dff0ff;
+    box-shadow:0 0 16px rgba(140,210,255,.55),inset 0 -2px 6px rgba(0,0,0,.25);
+  }
+  .pad.done .zone{opacity:.9}
+
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    60%{transform:translateX(6px)}
+  }
+  .pad.shake{animation:shake .22s ease-in-out}
+
+  footer{
+    text-align:center;font-size:12px;color:#5d6f85;
+    padding:4px 16px 14px;letter-spacing:.3px;
+  }
+
+  /* ---------- Всплывающий текст ---------- */
+  .floaty{
+    position:fixed;left:50%;top:45%;
+    transform:translate(-50%,-50%);
+    font-weight:800;font-size:21px;
+    pointer-events:none;z-index:60;
+    text-shadow:0 3px 12px rgba(0,0,0,.9);
+    animation:floatUp 1s ease-out forwards;
+    white-space:nowrap;
+  }
+  @keyframes floatUp{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}
+    18%{opacity:1;transform:translate(-50%,-62%) scale(1.12)}
+    100%{opacity:0;transform:translate(-50%,-150%) scale(1)}
+  }
+
+  /* ---------- Оверлеи ---------- */
+  .overlay{
+    position:fixed;inset:0;z-index:100;
+    background:rgba(8,11,16,.94);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:16px;padding:28px;text-align:center;
+  }
+  .overlay.hidden{display:none}
+  .logo{font-size:56px;line-height:1;animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+  .overlay h1{
+    font-size:28px;font-weight:900;letter-spacing:-.5px;
+    background:linear-gradient(90deg,#f5a623,#2fd873);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .overlay h2{font-size:24px;font-weight:800}
+  .overlay p{font-size:14px;line-height:1.55;color:#93a7bd;max-width:320px}
+  .overlay p.hint{font-size:13px;color:#6d8098;margin-top:4px}
+  .overlay button{
+    margin-top:12px;
+    font-family:inherit;font-size:17px;font-weight:800;letter-spacing:.4px;
+    color:#0b1220;border:none;border-radius:99px;
+    padding:15px 44px;cursor:pointer;
+    background:linear-gradient(135deg,#2fd873,#8ee85a);
+    box-shadow:0 8px 24px rgba(47,216,115,.35);
+    transition:transform .12s;
+  }
+  .overlay button:active{transform:scale(.95)}
+  #finalScore{font-size:19px;font-weight:800;color:#f5a623}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="stat"><span>💰</span><b id="money">0</b></div>
+  <div class="stat" id="hearts">❤️❤️❤️</div>
+  <div class="stat"><span>Ур.</span><b id="level">1</b></div>
+</header>
+
+<div id="orderbar">
+  <div id="gadgetEmoji">🔊</div>
+  <div id="gadgetWrap">
+    <div id="gadgetName">Колонка</div>
+    <div id="timerBar"><div id="timerFill"></div></div>
+  </div>
+</div>
+
+<main id="playArea">
+  <div id="board"></div>
+</main>
+
+<footer>Зажми круг → отпусти, когда бегунок в зелёной зоне</footer>
+
+<div class="overlay" id="startOverlay">
+  <div class="logo">🔧</div>
+  <h1>Голодные Гаджеты</h1>
+  <p>Колонки, телефоны и дроны проголодались.<br>Припаяй им компоненты, пока не села батарея!</p>
+  <p class="hint">Зажми контактную площадку и держи.<br>Отпусти, когда белый бегунок окажется<br>в зелёной зоне. Промах — потеря времени.</p>
+  <button id="startBtn">Начать смену</button>
+</div>
+
+<div class="overlay hidden" id="overOverlay">
+  <div class="logo">💥</div>
+  <h2>Смена окончена</h2>
+  <p id="finalScore">Заработано: 0 💰</p>
+  <p class="hint" id="finalLevel">Уровень 1</p>
+  <button id="restartBtn">Ещё раз</button>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ================= КОНСТАНТЫ ================= */
+  const GADGETS = [
+    { n: 'Колонка',   e: '🔊' },
+    { n: 'Телефон',   e: '📱' },
+    { n: 'Наушники',  e: '🎧' },
+    { n: 'Дрон',      e: '🚁' },
+    { n: 'Робот',     e: '🤖' },
+    { n: 'Радио',     e: '📻' },
+    { n: 'Часы',      e: '⌚' },
+    { n: 'Ноутбук',   e: '💻' },
+    { n: 'Геймпад',   e: '🎮' },
+    { n: 'Фонарь',    e: '🔦' },
+  ];
+  const COMPS = ['🔊','🔋','⚡','📡','💡','🔌','💾','🧲'];
+
+  const R = 44;
+  const CIRC = 2 * Math.PI * R;
+
+  /* ================= DOM ================= */
+  const $ = id => document.getElementById(id);
+  const board        = $('board');
+  const playArea     = $('playArea');
+  const moneyEl      = $('money');
+  const heartsEl     = $('hearts');
+  const levelEl      = $('level');
+  const timerFill    = $('timerFill');
+  const gadgetEmoji  = $('gadgetEmoji');
+  const gadgetName   = $('gadgetName');
+  const startOverlay = $('startOverlay');
+  const overOverlay  = $('overOverlay');
+  const finalScore   = $('finalScore');
+  const finalLevel   = $('finalLevel');
+
+  /* ================= СОСТОЯНИЕ ================= */
+  const state = {
+    money: 0,
+    level: 1,
+    hearts: 3,
+    ordersDone: 0,
+    running: false,
+    timeLeft: 0,
+    timeMax: 1,
+    heatTime: 1400,
+    pads: [],
+    activePad: -1,
+    lastTimerBucket: -1,
+  };
+  let padRefs = [];
+
+  /* ================= АУДИО ================= */
+  let actx = null;
+  let sizzle = null;
+
+  function initAudio() {
+    if (actx) return;
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) { actx = null; }
+  }
+
+  function tone(freq, dur, type = 'sine', vol = 0.07, slideTo = null) {
+    if (!actx) return;
+    try {
+      const t = actx.currentTime;
+      const o = actx.createOscillator();
+      const g = actx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(actx.destination);
+      o.start(t);
+      o.stop(t + dur + 0.02);
+    } catch (e) {}
+  }
+
+  function startSizzle() {
+    if (!actx || sizzle) return;
+    try {
+      const len = Math.floor(actx.sampleRate * 0.4);
+      const buf = actx.createBuffer(1, len, actx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      const src = actx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const filt = actx.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.value = 3200;
+      filt.Q.value = 0.9;
+      const g = actx.createGain();
+      g.gain.value = 0.028;
+      src.connect(filt).connect(g).connect(actx.destination);
+      src.start();
+      sizzle = { src, g };
+    } catch (e) { sizzle = null; }
+  }
+
+  function stopSizzle() {
+    if (!sizzle) return;
+    try { sizzle.src.stop(); } catch (e) {}
+    sizzle = null;
+  }
+
+  /* ================= СЛОЖНОСТЬ ================= */
+  function difficulty() {
+    const L = state.level;
+    const nPads     = Math.min(8, 3 + Math.floor((L - 1) / 2));
+    const zoneW     = Math.max(0.11, 0.30 - (L - 1) * 0.018);
+    const heatTime  = Math.max(650, 1500 - (L - 1) * 70);
+    const perPad    = Math.max(1.35, 2.6 - (L - 1) * 0.09);
+    const total     = nPads * perPad + 5;
+    return { nPads, zoneW, heatTime, total };
+  }
+
+  /* ================= РЕНДЕР ================= */
+  function padHTML(i) {
+    const p = state.pads[i];
+    return `<div class="pad" data-i="${i}">
+      <svg viewBox="0 0 100 100">
+        <circle class="track"  cx="50" cy="50" r="${R}"/>
+        <circle class="zone"   cx="50" cy="50" r="${R}"/>
+        <circle class="trail"  cx="50" cy="50" r="${R}"/>
+        <circle class="marker" cx="50" cy="50" r="5"/>
+      </svg>
+      <div class="core">${p.comp}</div>
+    </div>`;
+  }
+
+  function setArc(circle, startFrac, endFrac) {
+    const len = Math.max(0, (endFrac - startFrac)) * CIRC;
+    circle.setAttribute('stroke-dasharray', `${len} ${CIRC}`);
+    circle.setAttribute('stroke-dashoffset', `${-startFrac * CIRC}`);
+  }
+
+  function renderBoard() {
+    const n = state.pads.length;
+    const size = n <= 4 ? 'calc(50% - 12px)'
+               : n <= 6 ? 'calc(33.333% - 12px)'
+               :          'calc(25% - 12px)';
+    board.style.setProperty('--pad-size', size);
+    board.innerHTML = state.pads.map((_, i) => padHTML(i)).join('');
+
+    padRefs = [...board.querySelectorAll('.pad')].map((el, i) => {
+      const p = state.pads[i];
+      const zone   = el.querySelector('.zone');
+      const trail  = el.querySelector('.trail');
+      const marker = el.querySelector('.marker');
+
+      setArc(zone, p.zoneStart, p.zoneEnd);
+      trail.setAttribute('stroke-dasharray', `0 ${CIRC}`);
+      marker.setAttribute('opacity', '0');
+
+      el.addEventListener('pointerdown', ev => {
+        ev.preventDefault();
+        startHeat(i);
+      });
+
+      return { el, zone, trail, marker };
+    });
+  }
+
+  function updatePadVisual(i) {
+    const p = state.pads[i];
+    const ref = padRefs[i];
+    if (!p || !ref) return;
+    const h = Math.max(0, Math.min(1, p.heat));
+
+    if (h <= 0.001) {
+      ref.trail.setAttribute('stroke-dasharray', `0 ${CIRC}`);
+      ref.marker.setAttribute('opacity', '0');
+      return;
+    }
+    ref.trail.setAttribute('stroke-dasharray', `${h * CIRC} ${CIRC}`);
+    ref.marker.setAttribute('opacity', '1');
+    const ang = h * Math.PI * 2;
+    ref.marker.setAttribute('cx', 50 + R * Math.cos(ang));
+    ref.marker.setAttribute('cy', 50 + R * Math.sin(ang));
+  }
+
+  /* ================= HUD ================= */
+  function updateHUD() {
+    moneyEl.textContent = state.money;
+    levelEl.textContent = state.level;
+    heartsEl.textContent =
+      '❤️'.repeat(Math.max(0, state.hearts)) +
+      '🖤'.repeat(Math.max(0, 3 - state.hearts));
+  }
+
+  function updateTimerUI() {
+    const f = state.timeMax > 0 ? Math.max(0, state.timeLeft / state.timeMax) : 0;
+    timerFill.style.width = (f * 100) + '%';
+    const bucket = f > 0.5 ? 2 : f > 0.25 ? 1 : 0;
+    if (bucket !== state.lastTimerBucket) {
+      state.lastTimerBucket = bucket;
+      timerFill.style.background =
+        bucket === 2 ? 'linear-gradient(90deg,#2fd873,#9be15d)' :
+        bucket === 1 ? 'linear-gradient(90deg,#f5a623,#ffd54f)' :
+                       'linear-gradient(90deg,#ff5252,#ff8a65)';
+    }
+  }
+
+  function floatText(text, color) {
+    const el = document.createElement('div');
+    el.className = 'floaty';
+    el.textContent = text;
+    el.style.color = color;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+  }
+
+  /* ================= ИГРОВОЙ ЦИКЛ ================= */
+  let lastT = performance.now();
+
+  function loop(t) {
+    const dt = Math.min(80, t - lastT);
+    lastT = t;
+
+    if (state.running) {
+      state.timeLeft -= dt / 1000;
+      if (state.timeLeft <= 0) {
+        state.timeLeft = 0;
+        updateTimerUI();
+        orderFailed();
+      } else {
+        updateTimerUI();
+        if (state.activePad >= 0) {
+          const p = state.pads[state.activePad];
+          p.heat += dt / state.heatTime;
+          if (p.heat >= 1) {
+            p.heat = 1;
+            updatePadVisual(state.activePad);
+            endHeat();
+          } else {
+            updatePadVisual(state.activePad);
+          }
+        }
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  /* ================= ПАЙКА ================= */
+  function startHeat(i) {
+    if (!state.running || state.activePad >= 0) return;
+    const p = state.pads[i];
+    if (!p || p.filled) return;
+    state.activePad = i;
+    p.heat = 0;
+    padRefs[i].el.classList.add('heating');
+    updatePadVisual(i);
+    startSizzle();
+  }
+
+  function endHeat() {
+    if (state.activePad < 0) return;
+    const i = state.activePad;
+    const p = state.pads[i];
+    const el = padRefs[i].el;
+
+    el.classList.remove('heating');
+    stopSizzle();
+
+    // случайное касание — игнорируем
+    if (p.heat < 0.04) {
+      p.heat = 0;
+      state.activePad = -1;
+      updatePadVisual(i);
+      return;
+    }
+
+    if (p.heat >= p.zoneStart && p.heat <= p.zoneEnd) {
+      /* --- УСПЕХ --- */
+      p.filled = true;
+      p.heat = 0;
+      state.activePad = -1;
+      el.classList.add('done');
+      updatePadVisual(i);
+
+      tone(700, 0.07, 'square', 0.05);
+      setTimeout(() => tone(1050, 0.09, 'square', 0.045), 65);
+
+      if (state.pads.every(x => x.filled)) orderComplete();
+    } else {
+      /* --- ПРОМАХ --- */
+      const early = p.heat < p.zoneStart;
+      p.heat = 0;
+      state.activePad = -1;
+      updatePadVisual(i);
+
+      el.classList.add('shake');
+      setTimeout(() => el.classList.remove('shake'), 240);
+
+      state.timeLeft = Math.max(0, state.timeLeft - 0.5);
+      floatText(early ? 'НЕДОГРЕВ' : 'ПЕРЕГРЕВ', '#ff8a65');
+      tone(170, 0.16, 'sawtooth', 0.05, 90);
+    }
+  }
+
+  document.addEventListener('pointerup', endHeat);
+  document.addEventListener('pointercancel', endHeat);
+  document.addEventListener('contextmenu', e => e.preventDefault());
+
+  /* ================= ЗАКАЗЫ ================= */
+  function startOrder() {
+    const d = difficulty();
+
+    state.heatTime = d.heatTime;
+    state.gadget = GADGETS[(Math.random() * GADGETS.length) | 0];
+    state.pads = [];
+
+    for (let i = 0; i < d.nPads; i++) {
+      const w = d.zoneW;
+      const span = Math.max(0.01, 0.90 - w - 0.40);
+      const start = 0.40 + Math.random() * span;
+      state.pads.push({
+        comp: COMPS[(Math.random() * COMPS.length) | 0],
+        zoneStart: start,
+        zoneEnd: start + w,
+        heat: 0,
+        filled: false,
+      });
+    }
+
+    state.timeMax = d.total;
+    state.timeLeft = d.total;
+    state.activePad = -1;
+    state.lastTimerBucket = -1;
+    state.running = true;
+
+    gadgetEmoji.textContent = state.gadget.e;
+    gadgetName.textContent = state.gadget.n;
+    renderBoard();
+    updateHUD();
+    updateTimerUI();
+  }
+
+  function orderComplete() {
+    if (!state.running) return;
+    state.running = false;
+    state.activePad = -1;
+    stopSizzle();
+
+    const reward = 15 + state.pads.length * 12 + state.level * 4;
+    state.money += reward;
+    state.ordersDone++;
+    if (state.ordersDone % 2 === 0) state.level++;
+
+    updateHUD();
+    floatText('+' + reward + ' 💰', '#2fd873');
+
+    tone(523, 0.10, 'square', 0.06);
+    setTimeout(() => tone(659, 0.10, 'square', 0.06), 90);
+    setTimeout(() => tone(784, 0.16, 'square', 0.06), 180);
+
+    setTimeout(() => {
+      if (state.hearts > 0 && !overOverlay.classList.contains('hidden') === false) {
+        // продолжаем, если игра не закончена
+      }
+      if (state.hearts > 0) startOrder();
+    }, 1100);
+  }
+
+  function orderFailed() {
+    if (!state.running) return;
+    state.running = false;
+    state.activePad = -1;
+    stopSizzle();
+    if (padRefs.length && state.activePad >= 0) {
+      padRefs[state.activePad].el.classList.remove('heating');
+    }
+    padRefs.forEach(r => r.el.classList.remove('heating'));
+
+    state.hearts--;
+    updateHUD();
+    floatText('ПРОВАЛ −❤️', '#ff5252');
+    tone(220, 0.3, 'sawtooth', 0.07, 80);
+
+    if (state.hearts <= 0) {
+      setTimeout(gameOver, 900);
+    } else {
+      setTimeout(startOrder, 1200);
+    }
+  }
+
+  function gameOver() {
+    state.running = false;
+    stopSizzle();
+    finalScore.textContent = 'Заработано: ' + state.money + ' 💰';
+    finalLevel.textContent = 'Уровень ' + state.level + ' · заказов: ' + state.ordersDone;
+    overOverlay.classList.remove('hidden');
+  }
+
+  /* ================= РАЗМЕР ДОСКИ ================= */
+  function sizeBoard() {
+    const w = playArea.clientWidth  - 24;
+    const h = playArea.clientHeight - 24;
+    const s = Math.max(200, Math.min(w, h, 400));
+    board.style.width  = s + 'px';
+    board.style.height = s + 'px';
+    board.style.fontSize = (s / 14) + 'px';
+  }
+
+  /* ================= СТАРТ / РЕСТАРТ ================= */
+  function startGame() {
+    initAudio();
+    if (actx && actx.state === 'suspended') actx.resume();
+
+    state.money = 0;
+    state.level = 1;
+    state.hearts = 3;
+    state.ordersDone = 0;
+    state.running = false;
+    state.activePad = -1;
+
+    startOverlay.classList.add('hidden');
+    overOverlay.classList.add('hidden');
+
+    sizeBoard();
+    updateHUD();
+    startOrder();
+  }
+
+  $('startBtn').addEventListener('click', startGame);
+  $('restartBtn').addEventListener('click', startGame);
+
+  window.addEventListener('resize', sizeBoard);
+  window.addEventListener('orientationchange', () => setTimeout(sizeBoard, 250));
+
+  /* ================= ЗАПУСК ================= */
+  sizeBoard();
+  updateHUD();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
